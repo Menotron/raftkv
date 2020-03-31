@@ -1,0 +1,14 @@
+# Idea and project ignored files
+.idea/
+target/
+*.iml
+
+# Package Files
+*.jar
+
+# Compiled class file
+*.class
+
+# LOG file
+*.log
+
