@@ -2,6 +2,9 @@ package ie.tcd.cs7ns6;
 
 
 import ie.tcd.cs7ns6.network.SocketConnections;
+import ie.tcd.cs7ns6.node.Node;
+import ie.tcd.cs7ns6.node.NodeSet;
+import ie.tcd.cs7ns6.node.NodeState;
 import ie.tcd.cs7ns6.utils.SocketUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -21,7 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
-public class KVNode {
+public class KVNode{
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KVNode.class);
 
@@ -29,7 +32,14 @@ public class KVNode {
 
     private final Map<SocketAddress, Connection<ByteBuf, ByteBuf>> peerConnections;
     private final SocketAddress localAddress;
+    private Node self;
+    private NodeSet nodeSet = NodeSet.getInstance();
     private final Queue<String> peerMessageQueue = new ConcurrentLinkedQueue<>();
+
+    private int currentTerm = 0;
+    private NodeState.RaftState state = NodeState.RaftState.FOLLOWER;
+    private SocketAddress votedFor;
+
 
     public KVNode(String host, int port, String... peerHostsAndPorts) throws InterruptedException {
         SocketConnections sc = new SocketConnections();
@@ -43,8 +53,11 @@ public class KVNode {
                 })
                 .collect(Collectors.toConcurrentMap(Pair::getLeft, Pair::getRight))));
         this.peerConnections = sc.getServerConnections();
+        this.self = new Node(localAddress.toString());
+        nodeSet.setSelf(self);
         for(;;) {
             sendMessageToPeers();
+            LOGGER.info(nodeSet.toString());
             Thread.sleep(1000L);
         }
     }
@@ -60,7 +73,7 @@ public class KVNode {
             LOGGER.info("Sending {} to {}", message, remoteAddress);
             connection.writeStringAndFlushOnEach(Observable.just(message))
                     .subscribe(
-                            error -> LOGGER.error("Error on sending to {}", remoteAddress)
+                            error -> LOGGER.error("Error sending message to {}", remoteAddress)
                     );
         }
         );

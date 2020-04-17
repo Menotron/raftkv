@@ -1,5 +1,7 @@
 package ie.tcd.cs7ns6.network;
 
+import ie.tcd.cs7ns6.node.Node;
+import ie.tcd.cs7ns6.node.NodeSet;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.logging.LogLevel;
 import io.reactivex.netty.channel.Connection;
@@ -19,7 +21,7 @@ public class SocketConnections {
 
     private Map<SocketAddress, Connection<ByteBuf, ByteBuf>> serverConnections = null;
     private Connection<ByteBuf, ByteBuf> peerConnection;
-
+    NodeSet nodeSet = NodeSet.getInstance();
 
     public Map<SocketAddress, Connection<ByteBuf, ByteBuf>> getServerConnections() {
         return serverConnections;
@@ -42,10 +44,11 @@ public class SocketConnections {
                                 SocketAddress remoteAddress = connection.getChannelPipeline().channel().remoteAddress();
                                 if (serverConnections != null) {
                                     Optional<SocketAddress> oldConnection = serverConnections.keySet().stream()
-                                            .filter(k -> k.equals(remoteAddress))
+                                            .filter(socketAddress -> socketAddress.equals(remoteAddress))
                                             .findFirst();
                                     if (oldConnection.isPresent()) {
                                         serverConnections.remove(oldConnection.get());
+                                        nodeSet.removePeer(new Node(oldConnection.get().toString()));
                                         serverConnections.put(remoteAddress, connection);
                                         LOGGER.info("Replaced a old connection {}", remoteAddress);
                                     }
@@ -78,6 +81,9 @@ public class SocketConnections {
 
         if (count > 0) {
             peerConnection = connection;
+            serverConnections.keySet().forEach(
+                    socketAddress -> nodeSet.addPeer(new Node(socketAddress.toString()))
+            );
             return true;
         }
         return false;
